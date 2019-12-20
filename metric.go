@@ -184,7 +184,6 @@ func (ts *timeseries) UnmarshalJSON(v []byte) error {
 		ts.samples[i] = m
 	}
 
-	ts.roll()
 	return nil
 }
 
@@ -223,14 +222,22 @@ func (mm multimetric) MarshalJSON() ([]byte, error) {
 
 func (mm *multimetric) UnmarshalJSON(v []byte) error {
 	var metrics struct {
-		M []*timeseries `json:"metrics"`
+		M []json.RawMessage `json:"metrics"`
 	}
 
 	if err := json.Unmarshal(v, &metrics); err != nil {
 		return err
 	}
 
-	*mm = metrics.M
+	for _, m := range metrics.M {
+		var ts timeseries
+		if err := ts.UnmarshalJSON(m); err != nil {
+			return err
+		}
+
+		*mm = append(*mm, &ts)
+	}
+
 	return nil
 }
 

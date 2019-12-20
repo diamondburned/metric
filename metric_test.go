@@ -207,7 +207,8 @@ func TestMetricMultiJSON(t *testing.T) {
 		t.Fatal("Error loading json:", err)
 	}
 
-	if _, ok := m.(multimetric); !ok {
+	_, ok := m.(multimetric)
+	if !ok {
 		t.Fatal("Returned metrics is not multimetric")
 	}
 }

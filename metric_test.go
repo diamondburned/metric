@@ -207,9 +207,21 @@ func TestMetricMultiJSON(t *testing.T) {
 		t.Fatal("Error loading json:", err)
 	}
 
-	_, ok := m.(multimetric)
+	mm, ok := m.(multimetric)
 	if !ok {
 		t.Fatal("Returned metrics is not multimetric")
+	}
+
+	for i, m := range mm {
+		oldM := old.(multimetric)[i]
+
+		if m.total.String() != oldM.total.String() {
+			t.Fatal("Unmarshaled metric has different value")
+		}
+
+		if len(m.samples) != len(oldM.samples) {
+			t.Fatal("Unmarshaled metric has different sample sizes")
+		}
 	}
 }
 
@@ -230,8 +242,19 @@ func TestMetricSingleJSON(t *testing.T) {
 		t.Fatal("Error loading json:", err)
 	}
 
-	if _, ok := m.(*timeseries); !ok {
+	ts, ok := m.(*timeseries)
+	if !ok {
 		t.Fatal("Returned metrics is not timeseries")
+	}
+
+	oldM := old.(*timeseries)
+
+	if ts.total.String() != oldM.total.String() {
+		t.Fatal("Unmarshaled metric has different value")
+	}
+
+	if len(ts.samples) != len(oldM.samples) {
+		t.Fatal("Unmarshaled metric has different sample sizes")
 	}
 }
 

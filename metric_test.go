@@ -305,28 +305,29 @@ func TestMetricString(t *testing.T) {
 func TestCounterTimeline(t *testing.T) {
 	now = mockTime(0)
 	c := NewCounter("3s1s")
-	expect := func(total float64, samples ...float64) h {
+	expect := func(now time.Time, total float64, samples ...float64) h {
 		timeline := v{}
 		for _, s := range samples {
 			timeline = append(timeline, h{"type": "c", "count": s})
 		}
 		return h{
-			"interval": 1,
-			"total":    h{"type": "c", "count": total},
-			"samples":  timeline,
+			"interval":  1,
+			"last_time": now.UnixNano(),
+			"total":     h{"type": "c", "count": total},
+			"samples":   timeline,
 		}
 	}
-	assertJSON(t, c, expect(0, 0, 0, 0))
+	assertJSON(t, c, expect(now(), 0, 0, 0, 0))
 	c.Add(1)
-	assertJSON(t, c, expect(1, 1, 0, 0))
+	assertJSON(t, c, expect(now(), 1, 1, 0, 0))
 	now = mockTime(1)
-	assertJSON(t, c, expect(1, 0, 1, 0))
+	assertJSON(t, c, expect(now(), 1, 0, 1, 0))
 	c.Add(5)
-	assertJSON(t, c, expect(6, 5, 1, 0))
+	assertJSON(t, c, expect(now(), 6, 5, 1, 0))
 	now = mockTime(3)
-	assertJSON(t, c, expect(5, 0, 0, 5))
+	assertJSON(t, c, expect(now(), 5, 0, 0, 5))
 	now = mockTime(10)
-	assertJSON(t, c, expect(0, 0, 0, 0))
+	assertJSON(t, c, expect(now(), 0, 0, 0, 0))
 }
 
 /*

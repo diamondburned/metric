@@ -3,7 +3,6 @@ package metric
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -11,6 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // To mock time in tests
@@ -147,9 +148,14 @@ func (ts *timeseries) MarshalJSON() ([]byte, error) {
 	ts.roll()
 	return json.Marshal(struct {
 		Interval float64  `json:"interval"`
+		LastTime int64    `json:"last_time"`
 		Total    metric   `json:"total"`
 		Samples  []metric `json:"samples"`
-	}{float64(ts.interval) / float64(time.Second), ts.total, ts.samples})
+	}{
+		float64(ts.interval) / float64(time.Second),
+		ts.now.UnixNano(),
+		ts.total, ts.samples,
+	})
 }
 
 func (ts *timeseries) UnmarshalJSON(v []byte) error {
@@ -158,6 +164,7 @@ func (ts *timeseries) UnmarshalJSON(v []byte) error {
 
 	var data struct {
 		Interval float64           `json:"interval"`
+		LastTime int64             `json:"last_time"`
 		Total    json.RawMessage   `json:"total"`
 		Samples  []json.RawMessage `json:"samples"`
 	}
@@ -166,11 +173,12 @@ func (ts *timeseries) UnmarshalJSON(v []byte) error {
 		return err
 	}
 
+	ts.now = time.Unix(0, data.LastTime)
 	ts.interval = time.Duration(data.Interval * float64(time.Second))
 
 	m, err := loadSingleMetricsJSON(data.Total)
 	if err != nil {
-		return err
+		return fmt.Errorf("total field is invalid: %v", err)
 	}
 	ts.total = m
 
@@ -179,7 +187,7 @@ func (ts *timeseries) UnmarshalJSON(v []byte) error {
 	for i, sample := range data.Samples {
 		m, err := loadSingleMetricsJSON(sample)
 		if err != nil {
-			return err
+			return fmt.Errorf("sample %d is bad: %v", i, err)
 		}
 		ts.samples[i] = m
 	}

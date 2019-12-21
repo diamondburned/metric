@@ -12,15 +12,20 @@ import (
 	"html/template"
 )
 
-var (
-	page = template.Must(template.New("").
-		Funcs(template.FuncMap{"path": path, "duration": duration}).
-		Parse(`<!DOCTYPE html>
+var fns = template.FuncMap{
+	"path":     path,
+	"duration": duration,
+}
+
+var DefaultSorter = func(i, j string) bool {
+	return strings.Compare(i, j) < 0
+}
+
+const HTMLTemplate = `<!DOCTYPE html>
 <html lang="us">
 <meta charset="utf-8">
 <title>Metrics report</title>
 <meta name="viewport" content="width=device-width">
-<meta http-equiv="refresh" content="1">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: monospace; font-size: 12px; }
 .container {
@@ -118,8 +123,29 @@ path:last-child { stroke: black; }
 		</div>
 	</div>
 {{ end }}
-`))
+`
+
+var (
+	page = template.Must(template.New("").Funcs(fns).Parse(HTMLTemplate))
 )
+
+func ReplaceHTML(html string, optionalFnMap template.FuncMap) error {
+	if optionalFnMap != nil {
+		for name, fn := range optionalFnMap {
+			fns[name] = fn
+		}
+
+		page = page.Funcs(fns)
+	}
+
+	p, err := page.Parse(html)
+	if err != nil {
+		return err
+	}
+
+	page = p
+	return nil
+}
 
 func path(samples []interface{}, keys ...string) []string {
 	var min, max float64
@@ -186,11 +212,14 @@ func Handler(snapshot func() map[string]Metric) http.Handler {
 			m["name"] = name
 			metrics = append(metrics, m)
 		}
+
 		sort.Slice(metrics, func(i, j int) bool {
-			n1 := metrics[i]["name"].(string)
-			n2 := metrics[j]["name"].(string)
-			return strings.Compare(n1, n2) < 0
+			return DefaultSorter(
+				metrics[i]["name"].(string),
+				metrics[j]["name"].(string),
+			)
 		})
+
 		page.Execute(w, metrics)
 	})
 }

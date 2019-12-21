@@ -35,20 +35,32 @@ var _, _, _ metric = &counter{}, &gauge{}, &histogram{}
 
 // NewCounter returns a counter metric that increments the value with each
 // incoming number.
-func NewCounter(frames ...string) Metric {
-	return newMetric(func() metric { return &counter{} }, frames...)
+func NewCounter(unit string, frames ...string) Metric {
+	return newMetric(func() metric {
+		return &counter{
+			unit: unit,
+		}
+	}, frames...)
 }
 
 // NewGauge returns a gauge metric that sums up the incoming values and returns
 // mean/min/max of the resulting distribution.
-func NewGauge(frames ...string) Metric {
-	return newMetric(func() metric { return &gauge{} }, frames...)
+func NewGauge(unit string, frames ...string) Metric {
+	return newMetric(func() metric {
+		return &gauge{
+			Unit: unit,
+		}
+	}, frames...)
 }
 
 // NewHistogram returns a histogram metric that calculates 50%, 90% and 99%
 // percentiles of the incoming numbers.
-func NewHistogram(frames ...string) Metric {
-	return newMetric(func() metric { return &histogram{} }, frames...)
+func NewHistogram(unit string, frames ...string) Metric {
+	return newMetric(func() metric {
+		return &histogram{
+			unit: unit,
+		}
+	}, frames...)
 }
 
 func LoadMetricJSON(b []byte) (Metric, error) {
@@ -255,6 +267,7 @@ func (mm multimetric) String() string {
 
 type counter struct {
 	count uint64
+	unit  string
 }
 
 func (c *counter) String() string {
@@ -282,17 +295,20 @@ func (c *counter) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Type  string  `json:"type"`
 		Count float64 `json:"count"`
-	}{"c", c.value()})
+		Unit  string  `json:"unit"`
+	}{"c", c.value(), c.unit})
 }
 func (c *counter) UnmarshalJSON(v []byte) error {
 	var data struct {
 		Count float64 `json:"count"`
+		Unit  string  `json:"unit"`
 	}
 
 	if err := json.Unmarshal(v, &data); err != nil {
 		return err
 	}
 
+	c.unit = data.Unit
 	c.unvalue(data.Count)
 	return nil
 }
@@ -312,6 +328,7 @@ type gauge struct {
 	Min   float64 `json:"min"`
 	Max   float64 `json:"max"`
 	Count int     `json:"count"`
+	Unit  string  `json:"unit"`
 }
 
 func (g *gauge) String() string {
@@ -347,6 +364,7 @@ func (g *gauge) MarshalJSON() ([]byte, error) {
 		Max   float64 `json:"max"`
 		Sum   float64 `json:"sum"`
 		Count int     `json:"count"`
+		Unit  string  `json:"unit"`
 	}
 	data.Type = "g"
 	data.Value = g.Value
@@ -355,6 +373,7 @@ func (g *gauge) MarshalJSON() ([]byte, error) {
 	data.Max = g.Max
 	data.Count = g.Count
 	data.Mean = g.mean()
+	data.Unit = g.Unit
 
 	return json.Marshal(&data)
 }
@@ -399,6 +418,7 @@ type histogram struct {
 	sync.Mutex
 	bins  []bin
 	total float64
+	unit  string
 }
 
 func (h *histogram) String() string {
@@ -438,8 +458,9 @@ func (h *histogram) MarshalJSON() ([]byte, error) {
 		P99   float64 `json:"p99"`
 		Bins  []bin   `json:"bins"`
 		Total float64 `json:"total"`
+		Unit  string  `json:"unit"`
 	}{"h", h.quantile(0.5), h.quantile(0.9), h.quantile(0.99),
-		h.bins, h.total})
+		h.bins, h.total, h.unit})
 }
 
 func (h *histogram) UnmarshalJSON(v []byte) error {
@@ -449,6 +470,7 @@ func (h *histogram) UnmarshalJSON(v []byte) error {
 	var data struct {
 		B []bin   `json:"bins"`
 		T float64 `json:"total"`
+		U string  `json:"unit"`
 	}
 
 	if err := json.Unmarshal(v, &data); err != nil {
@@ -457,6 +479,7 @@ func (h *histogram) UnmarshalJSON(v []byte) error {
 
 	h.bins = data.B
 	h.total = data.T
+	h.unit = data.U
 	return nil
 }
 
